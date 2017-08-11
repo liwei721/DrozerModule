@@ -2,6 +2,7 @@
 # -*- coding: gbk -*-
 from drozer.modules import Module, common
 from drozer import android
+
 import time
 
 __author__ = 'zhouliwei'
@@ -198,8 +199,14 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
 
             # 执行Activity启动
             for activity in exported_activitys:
+                # 常规启动Activity
                 self.stdout.write("启动exported activity %s \n" % activity.name)
-                self.__start_activity(arguments, package, activity.name)
+                self.__start_activity(package, activity.name)
+
+                # # 发送带extras的Activity。
+                # self.stdout.write("用extras启动Activity,extras数据传入自定义class \n\n")
+                # self.__start_activity_extras(package, activity.name)
+
                 # 暂停10s再执行下一个
                 time.sleep(self.execute_interval)
         else:
@@ -211,7 +218,7 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
         启动Activity
     """
 
-    def __start_activity(self, arguments, package, activity_name):
+    def __start_activity(self, package, activity_name):
         try:
             intent = self.new("android.content.Intent")
             comp = (package.packageName, activity_name)
@@ -220,6 +227,28 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
             intent.setFlags(0x10000000)
             self.getContext().startActivity(intent)
         except Exception:
+            self.stderr.write("%s need some premission or other failure. \n " % activity_name)
+
+    """
+        启动Activity
+    """
+
+    def __start_activity_extras(self, package, activity_name):
+        try:
+            intent = self.new("android.content.Intent")
+            comp = (package.packageName, activity_name)
+            com = self.new("android.content.ComponentName", *comp)
+            intent.setComponent(com)
+            intent.setFlags(0x10000000)
+            extras = self.new("android.os.Bundle")
+            if extras is None:
+                self.stdout.write("extras is none \n")
+            self.stdout.write("start111 extras is none \n ")
+            intent.putExtra("seriadddddlizable_dkey", ActivitySeriable())
+            self.stdout.write("start extras is none \n ")
+            self.getContext().startActivity(intent)
+        except Exception as e:
+            self.stderr.write("%s start activity failure , the error is %s \n" % (activity_name, e.message))
             self.stderr.write("%s need some premission or other failure. \n " % activity_name)
 
     """
@@ -248,18 +277,16 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
         # attempt to query each content uri
         for uri in self.findAllContentUris(arguments.package):
             try:
-                self.stdout.write("开始查询 exported provider %s \n " % uri)
                 response = self.contentResolver().query(uri)
-                time.sleep(self.execute_interval)
             except Exception:
                 response = None
 
             if response is None:
-                self.stdout.write("Unable to Query  %s\n" % uri)
+                self.stdout.write("this Unable to Query  %s\n" % uri)
             else:
-                self.stdout.write("Able to Query    %s\n" % uri)
+                self.stdout.write("this Able to Query    %s\n" % uri)
                 # 直接去查询数据
-                self.stdout.write("开始查询 uri %s 对应的数据 \n" % uri)
+                self.stdout.write("begin query uri %s data \n" % uri)
                 self.__read_data_from_uri(uri)
 
     """
@@ -271,8 +298,13 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
 
         if c is not None:
             rows = self.getResultSet(c)
-            # 打印表数据
-            self.print_table(rows, show_headers=True, vertical=False)
+            if rows is not None:
+                # 打印表数据
+                self.stdout.write("******************query data*********************")
+                self.print_table(rows, show_headers=True, vertical=False)
+                self.stdout.write("******************query data*********************")
+            else:
+                self.stdout.write("%s uri can't query data!!" % uri)
         else:
             self.stdout.write("Unknown Error.\n\n")
 
@@ -308,3 +340,14 @@ class Fuzz(Module, common.Filters, common.PackageManager, common.Provider, commo
             return exported_receivers
         else:
             self.stdout.write(" No exported receivers.\n\n")
+
+
+"""
+    仅用于intent中传递参数
+"""
+
+
+class ActivitySeriable(object):
+    def ActititySeriable(self):
+        pass
+
